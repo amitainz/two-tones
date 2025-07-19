@@ -146,44 +146,63 @@ import streamlit as st
 
 st.title("🌍 Interactive World Simulation")
 
+# Initialize session state
 if 'total_reward' not in st.session_state:
     st.session_state.total_reward = 0.0
     st.session_state.current_world = sample_world()
-    st.session_state.current_observation = random.choices(
-        list(st.session_state.current_world.observation_distribution.keys()),
-        weights=st.session_state.current_world.observation_distribution.values(),
-        k=1
-    )[0]
+    st.session_state.current_observation = None
+    st.session_state.awaiting_play_again = True
 
-st.write(f"Observation: {st.session_state.current_observation.show()}")
+# Reward display box
+st.sidebar.header("Game Stats")
+st.sidebar.metric("Total Reward", f"{st.session_state.total_reward:.2f}")
 
-possible_actions = UmbrellaAction.all_possibilities(st.session_state.current_observation)
-action_choice = st.selectbox(
-    "Choose an action:",
-    options=list(possible_actions),
-    format_func=lambda a: a.show()
-)
+# Play Again logic
+if st.session_state.awaiting_play_again:
+    if st.button("Play Again"):
+        # Sample new world and observation
+        st.session_state.current_world = sample_world()
+        st.session_state.current_observation = random.choices(
+            list(st.session_state.current_world.observation_distribution.keys()),
+            weights=st.session_state.current_world.observation_distribution.values(),
+            k=1
+        )[0]
+        st.session_state.awaiting_play_again = False
+        st.experimental_rerun()
+    else:
+        st.write("Click 'Play Again' to start a new round.")
+else:
+    # Show current observation
+    st.write(f"**Observation:** {st.session_state.current_observation.show()}")
 
-if st.button("Submit Action"):
-    outcome_distribution = st.session_state.current_world.marginal_outcome_distribution(
-        st.session_state.current_observation,
-        action_choice
+    # Action selection
+    possible_actions = UmbrellaAction.all_possibilities(st.session_state.current_observation)
+    action_choice = st.selectbox(
+        "Choose an action:",
+        options=list(possible_actions),
+        format_func=lambda a: a.show()
     )
-    outcome = random.choices(
-        list(outcome_distribution.keys()),
-        weights=outcome_distribution.values(),
-        k=1
-    )[0]
 
-    st.session_state.total_reward += outcome.reward
+    if st.button("Submit Action"):
+        # Compute outcome
+        outcome_distribution = st.session_state.current_world.marginal_outcome_distribution(
+            st.session_state.current_observation,
+            action_choice
+        )
+        outcome = random.choices(
+            list(outcome_distribution.keys()),
+            weights=outcome_distribution.values(),
+            k=1
+        )[0]
 
-    st.success(f"Outcome: {outcome.show()} | Reward: {outcome.reward}")
-    st.info(f"Total Reward: {st.session_state.total_reward}")
+        # Update reward
+        st.session_state.total_reward += outcome.reward
 
-    st.session_state.current_observation = random.choices(
-        list(st.session_state.current_world.observation_distribution.keys()),
-        weights=st.session_state.current_world.observation_distribution.values(),
-        k=1
-    )[0]
+        # Display result
+        st.success(f"Outcome: {outcome.show()} | Reward: {outcome.reward}")
 
-    st.rerun()
+        # Flag to await next round
+        st.session_state.awaiting_play_again = True
+        
+        # Allow user to see outcome before continuing
+        st.stop()
