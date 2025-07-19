@@ -2,27 +2,33 @@ from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, Protocol, runtime_checkable, Self
 import random
 
+
 @runtime_checkable
 class Showable(Protocol):
     def show(self) -> str:
         ...
 
+
 ObsT = TypeVar('ObsT', bound=Showable)
 OutT = TypeVar('OutT', bound='Outcome')
 
+
 @runtime_checkable
-class Actionable(Showable, Protocol, Generic[ObsT]):
+class Actionable(Showable, Generic[ObsT]):
     @classmethod
     def all_possibilities(cls, obs: ObsT) -> frozenset[Self]:
         ...
 
+
 ActT = TypeVar('ActT', bound=Actionable)
 
-class Outcome(Showable, Protocol):
+
+class Outcome(Showable):
     @property
     @abstractmethod
     def reward(self) -> float:
         ...
+
 
 class World(ABC, Generic[ObsT, ActT, OutT]):
     @property
@@ -40,36 +46,44 @@ class World(ABC, Generic[ObsT, ActT, OutT]):
         """Conditional outcome distribution given an observation and action."""
         raise NotImplementedError
 
+
 # Concrete implementations
 class WeatherObservation:
-    def __init__(self, condition: str):
-        self.condition = condition
+    def __init__(self, description: str):
+        self.description = description
 
     def show(self) -> str:
-        return self.condition
+        return self.description
 
     def __hash__(self):
-        return hash(self.condition)
+        return hash(self.description)
 
     def __eq__(self, other):
-        return isinstance(other, WeatherObservation) and self.condition == other.condition
+        return isinstance(other, WeatherObservation) and self.description == other.description
+
+
+
 
 class UmbrellaAction(Actionable[WeatherObservation]):
-    def __init__(self, action: str):
-        self.action = action
+    def __init__(self, description: str):
+        self.description = description
 
     def show(self) -> str:
-        return self.action
+        return self.description
 
     def __hash__(self):
-        return hash(self.action)
+        return hash(self.description)
 
     def __eq__(self, other):
-        return isinstance(other, UmbrellaAction) and self.action == other.action
+        return isinstance(other, UmbrellaAction) and self.description == other.description
 
     @classmethod
     def all_possibilities(cls, obs: WeatherObservation) -> frozenset[Self]:
         return frozenset({cls("Take Umbrella"), cls("Don't Take Umbrella")})
+
+TAKE = UmbrellaAction("Take Umbrella")
+DONT_TAKE = UmbrellaAction("Dont Take Umbrella")
+
 
 class SimpleOutcome(Outcome):
     def __init__(self, description: str, reward: float):
@@ -89,8 +103,10 @@ class SimpleOutcome(Outcome):
     def __eq__(self, other):
         return isinstance(other, SimpleOutcome) and self.description == other.description
 
+
 class SimpleWorld(World[WeatherObservation, UmbrellaAction, SimpleOutcome]):
-    def __init__(self, obs_distribution: dict[WeatherObservation, float], outcomes: dict[tuple[str, str], dict[SimpleOutcome, float]]):
+    def __init__(self, obs_distribution: dict[WeatherObservation, float],
+                 outcomes: dict[tuple[WeatherObservation, UmbrellaAction], dict[SimpleOutcome, float]]):
         self._obs_distribution = obs_distribution
         self._outcomes = outcomes
 
@@ -103,37 +119,42 @@ class SimpleWorld(World[WeatherObservation, UmbrellaAction, SimpleOutcome]):
         observation: WeatherObservation,
         action: UmbrellaAction
     ) -> dict[SimpleOutcome, float]:
-        return self._outcomes.get((observation.condition, action.action), {})
+        return self._outcomes.get((observation, action), {})
+
 
 # Define worlds
-cloudy = WeatherObservation("Cloudy")
-clear = WeatherObservation("Clear")
+CLOUDY = WeatherObservation("Cloudy")
+CLEAR = WeatherObservation("Clear")
+
+DRY_BY_UMBRELLA = SimpleOutcome("It rained but I stayed dry", 50)
+UNNECESSARY_BURDEN = SimpleOutcome("No rain, I took an unnecessary load", 70)
+SOAKED = SimpleOutcome("I got soaked", -100)
+LIGHT_AS_A_FEATHER = SimpleOutcome("No rain, light as a feather.", 100)
 
 world1 = SimpleWorld(
-    obs_distribution={cloudy: 0.6, clear: 0.4},
+    obs_distribution={CLOUDY: 0.6, CLEAR: 0.4},
     outcomes={
-        ("Cloudy", "Take Umbrella"): {
-            SimpleOutcome("It rained but I stayed dry", 0.3): 50,
-            SimpleOutcome("No rain, I took an unnecessary load", 0.7): 50
+        (CLOUDY, TAKE): {
+            DRY_BY_UMBRELLA: 0.3,
+            UNNECESSARY_BURDEN: 0.7
         },
-        ("Cloudy", "Don't Take Umbrella"): {    
-            SimpleOutcome("I got soaked", 0.3): -100,
-            SimpleOutcome("No rain, free as a bird", 0.7): 100
+        (CLOUDY, DONT_TAKE): {
+            SOAKED: 0.3,
+            LIGHT_AS_A_FEATHER: 0.7,
         },
-        ("Clear", "Take Umbrella"): {
-            SimpleOutcome("It rained but I stayed dry", 0.1): 50,
-            SimpleOutcome("No rain, I took an unnecessary load", 0.9): 50
+        (CLEAR, TAKE): {
+            DRY_BY_UMBRELLA: 0.1,
+            UNNECESSARY_BURDEN: 0.9
         },
-        ("Clear", "Don't Take Umbrella"): {    
-            SimpleOutcome("I got soaked", 0.1): -100,
-            SimpleOutcome("No rain, free as a bird", 0.9): 100
-        },
-
-    }
+        (CLEAR, DONT_TAKE): {
+            SOAKED: 0.1,
+            LIGHT_AS_A_FEATHER: 0.9,
+        }
+    },
 )
 
 world2 = SimpleWorld(
-    obs_distribution={cloudy: 0.5, clear: 0.5},
+    obs_distribution={CLOUDY: 0.5, CLEAR: 0.5},
     outcomes=world1._outcomes
 )
 
@@ -142,28 +163,32 @@ world_distribution: list[tuple[World, float]] = [
     (world2, 0.5)
 ]
 
+
 def sample_world() -> None:
     worlds, weights = zip(*world_distribution)
     st.session_state.current_world = random.choices(worlds, weights=weights, k=1)[0]
 
+
 def sample_observation() -> None:
     st.session_state.current_observation = random.choices(
-            list(st.session_state.current_world.observation_distribution.keys()),
-            weights=st.session_state.current_world.observation_distribution.values(),
-            k=1
-        )[0]
+        list(st.session_state.current_world.observation_distribution.keys()),
+        weights=st.session_state.current_world.observation_distribution.values(),
+        k=1
+    )[0]
+
 
 def sample_outcome() -> OutT:
     outcome_distribution = st.session_state.current_world.marginal_outcome_distribution(
-            st.session_state.current_observation,
-            action_choice
-        )
+        st.session_state.current_observation,
+        action_choice
+    )
     return random.choices(
         list(outcome_distribution.keys()),
         weights=outcome_distribution.values(),
         k=1
     )[0]
-    
+
+
 # Streamlit UI
 import streamlit as st
 
@@ -187,7 +212,7 @@ if st.session_state.awaiting_play_again:
         # st.session_state.current_world = sample_world()
         st.session_state.sample_observation()
         st.session_state.awaiting_play_again = False
-        
+
     else:
         st.write("Click 'Play Again' to start a new round.")
 else:
