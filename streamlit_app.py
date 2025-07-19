@@ -110,20 +110,25 @@ cloudy = WeatherObservation("Cloudy")
 clear = WeatherObservation("Clear")
 
 world1 = SimpleWorld(
-    obs_distribution={cloudy: 0.7, clear: 0.3},
+    obs_distribution={cloudy: 0.6, clear: 0.4},
     outcomes={
         ("Cloudy", "Take Umbrella"): {
-            SimpleOutcome("It rained but I stayed dry", 1.0): 1.0
+            SimpleOutcome("It rained but I stayed dry", 0.3): 50,
+            SimpleOutcome("No rain, I took an unnecessary load", 0.7): 50
         },
-        ("Cloudy", "Don't Take Umbrella"): {
-            SimpleOutcome("I got soaked", -1.0): 1.0
+        ("Cloudy", "Don't Take Umbrella"): {    
+            SimpleOutcome("I got soaked", 0.3): -100,
+            SimpleOutcome("No rain, free as a bird", 0.7): 100
         },
         ("Clear", "Take Umbrella"): {
-            SimpleOutcome("It was sunny, I took an unnecessary load", -0.2): 1.0
+            SimpleOutcome("It rained but I stayed dry", 0.1): 50,
+            SimpleOutcome("No rain, I took an unnecessary load", 0.9): 50
         },
-        ("Clear", "Don't Take Umbrella"): {
-            SimpleOutcome("It was sunny and I was comfortable", 1.0): 1.0
-        }
+        ("Clear", "Don't Take Umbrella"): {    
+            SimpleOutcome("I got soaked", 0.1): -100,
+            SimpleOutcome("No rain, free as a bird", 0.9): 100
+        },
+
     }
 )
 
@@ -133,14 +138,32 @@ world2 = SimpleWorld(
 )
 
 world_distribution: list[tuple[World, float]] = [
-    (world1, 0.6),
-    (world2, 0.4)
+    (world1, 0.5),
+    (world2, 0.5)
 ]
 
-def sample_world() -> World:
+def sample_world() -> None:
     worlds, weights = zip(*world_distribution)
-    return random.choices(worlds, weights=weights, k=1)[0]
+    st.session_state.current_world = random.choices(worlds, weights=weights, k=1)[0]
 
+def sample_observation() -> None:
+    st.session_state.current_observation = random.choices(
+            list(st.session_state.current_world.observation_distribution.keys()),
+            weights=st.session_state.current_world.observation_distribution.values(),
+            k=1
+        )[0]
+
+def sample_outcome() -> OutT:
+    outcome_distribution = st.session_state.current_world.marginal_outcome_distribution(
+            st.session_state.current_observation,
+            action_choice
+        )
+    return random.choices(
+        list(outcome_distribution.keys()),
+        weights=outcome_distribution.values(),
+        k=1
+    )[0]
+    
 # Streamlit UI
 import streamlit as st
 
@@ -149,9 +172,9 @@ st.title("🌍 Interactive World Simulation")
 # Initialize session state
 if 'total_reward' not in st.session_state:
     st.session_state.total_reward = 0.0
-    st.session_state.current_world = sample_world()
-    st.session_state.current_observation = None
-    st.session_state.awaiting_play_again = True
+    sample_world()
+    sample_observation()
+    st.session_state.awaiting_play_again = False
 
 # Reward display box
 st.sidebar.header("Game Stats")
@@ -161,12 +184,8 @@ st.sidebar.metric("Total Reward", f"{st.session_state.total_reward:.2f}")
 if st.session_state.awaiting_play_again:
     if st.button("Play Again"):
         # Sample new world and observation
-        st.session_state.current_world = sample_world()
-        st.session_state.current_observation = random.choices(
-            list(st.session_state.current_world.observation_distribution.keys()),
-            weights=st.session_state.current_world.observation_distribution.values(),
-            k=1
-        )[0]
+        # st.session_state.current_world = sample_world()
+        st.session_state.sample_observation()
         st.session_state.awaiting_play_again = False
         
     else:
@@ -185,15 +204,7 @@ else:
 
     if st.button("Submit Action"):
         # Compute outcome
-        outcome_distribution = st.session_state.current_world.marginal_outcome_distribution(
-            st.session_state.current_observation,
-            action_choice
-        )
-        outcome = random.choices(
-            list(outcome_distribution.keys()),
-            weights=outcome_distribution.values(),
-            k=1
-        )[0]
+        outcome = sample_outcome()
 
         # Update reward
         st.session_state.total_reward += outcome.reward
@@ -203,6 +214,3 @@ else:
 
         # Flag to await next round
         st.session_state.awaiting_play_again = True
-        
-        # Allow user to see outcome before continuing
-        st.stop()
