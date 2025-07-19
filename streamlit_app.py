@@ -186,4 +186,4 @@ if st.button("Submit Action"):
         k=1
     )[0]
 
-st.write("Total Reward:", st.session_state.total_reward)
+        st.rerun()
