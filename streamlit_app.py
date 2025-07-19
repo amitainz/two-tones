@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import TypeVar, Generic, Protocol, Dict, FrozenSet, runtime_checkable
+from typing import TypeVar, Generic, Protocol, runtime_checkable, Self
 
 @runtime_checkable
 class Showable(Protocol):
@@ -10,9 +10,9 @@ ObsT = TypeVar('ObsT', bound=Showable)
 OutT = TypeVar('OutT', bound=Showable)
 
 @runtime_checkable
-class Actionable(Showable, Protocol):
+class Actionable(Showable, Protocol, Generic[ObsT]):
     @classmethod
-    def all_possibilities(cls, obs: ObsT) -> FrozenSet['Actionable']:
+    def all_possibilities(cls, obs: ObsT) -> frozenset[Self]:
         ...
 
 ActT = TypeVar('ActT', bound=Actionable)
@@ -20,7 +20,7 @@ ActT = TypeVar('ActT', bound=Actionable)
 class World(ABC, Generic[ObsT, ActT, OutT]):
     @property
     @abstractmethod
-    def observation_distribution(self) -> Dict[ObsT, float]:
+    def observation_distribution(self) -> dict[ObsT, float]:
         """Probability distribution over observations."""
         raise NotImplementedError
 
@@ -29,7 +29,7 @@ class World(ABC, Generic[ObsT, ActT, OutT]):
         self,
         observation: ObsT,
         action: ActT,
-    ) -> Dict[OutT, float]:
+    ) -> dict[OutT, float]:
         """Conditional outcome distribution given an observation and action."""
         raise NotImplementedError
 
