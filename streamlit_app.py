@@ -186,4 +186,4 @@ if st.button("Submit Action"):
         k=1
     )[0]
 
-        st.rerun()
+    st.rerun()
