@@ -168,7 +168,7 @@ if st.session_state.awaiting_play_again:
             k=1
         )[0]
         st.session_state.awaiting_play_again = False
-        st.experimental_rerun()
+        
     else:
         st.write("Click 'Play Again' to start a new round.")
 else:
