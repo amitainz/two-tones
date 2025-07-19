@@ -14,7 +14,7 @@ OutT = TypeVar('OutT', bound='Outcome')
 
 
 @runtime_checkable
-class Actionable(Showable, Generic[ObsT]):
+class Actionable(Showable, Protocol[OutT]):
     @classmethod
     def all_possibilities(cls, obs: ObsT) -> frozenset[Self]:
         ...
@@ -23,7 +23,7 @@ class Actionable(Showable, Generic[ObsT]):
 ActT = TypeVar('ActT', bound=Actionable)
 
 
-class Outcome(Showable):
+class Outcome(Showable, Protocol):
     @property
     @abstractmethod
     def reward(self) -> float:
